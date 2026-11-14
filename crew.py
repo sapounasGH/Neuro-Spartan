@@ -70,7 +70,11 @@ def fetch_crew(timeout: float = 10.0) -> Crew:
     if not members:
         raise CrewError("Open-Notify returned an empty crew list.")
 
-    total = data.get("number")
+    total = data.get("number") ## ISS filtering
+    for person in data["people"]:
+        if person["craft"] != "ISS":
+            total = total - 1
+
     if not isinstance(total, int):
         total = len(members)
 

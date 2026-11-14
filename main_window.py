@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
         page_names = ("Neurogames", "Biomarkers", "Info", "History")
         page_blurbs = (
             "Cognitive games and daily sessions.",
-            "NFL, GFAP and Abeta-40 readings.",
+            "NFL, GFAP and Aβ-40 readings.",
             "Score, trend chart and recommendations.",
             "Past sessions, dose and crew events.",
         )
