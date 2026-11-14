@@ -61,9 +61,11 @@ def fetch_crew(timeout: float = 10.0) -> Crew:
     members: list[Astronaut] = []
     for person in data["people"]:
         try:
-            members.append(Astronaut(name=str(person["name"]), craft=str(person["craft"])))
+            if person["craft"] == "ISS":
+                members.append(Astronaut(name=str(person["name"]), craft=str(person["craft"])))
         except (KeyError, TypeError):
             continue  # skip malformed entries instead of failing the whole list
+        
 
     if not members:
         raise CrewError("Open-Notify returned an empty crew list.")
