@@ -13,5 +13,11 @@ Space is a place that is widely uncharted. With NASA planning to send human astr
 Our mission is to:
 1. Create a gaming environment that tracks the cognitive trends of astronauts on missions.
 2. Track specific biomarkers that are directly linked to cognitive function such as NfL, GFAP, and $A\beta40$ (research shows that these biomarkers were directly affected during the voyage).
+3. Normalise data from biomarkers and cognitive function based on sleep quality, in order to regulate our results.
+
 
 Then, with calculations, we can understand, based on the diagrams’ normalised slope, potential dangers to the rest of the crew (such as passage through a high-radiation patch of space or solar storms).
+
+## Potential Counterargument
+
+If an astronaut shows traceable cognitive decline, does that not mean that the rest of the crew will also be affected? That is valid, but every human does not get affected in the same way. The goal is to save the mission from random variables that we cannot possibly predict from Earth.

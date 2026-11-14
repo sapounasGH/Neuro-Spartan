@@ -52,6 +52,14 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.selected)
 
         # Tabs: Neurogames | Biomarkers | Info | History
+        page_names = ("Neurogames", "Biomarkers", "Info", "History")
+        page_blurbs = (
+            "Cognitive games and daily sessions.",
+            "NFL, GFAP and Aβ-40 readings.",
+            "Score, trend chart and recommendations.",
+            "Past sessions, dose and crew events.",
+        )
+
         self.tabs = QTabBar()
         self.tabs.setObjectName("Tabs")
         self.tabs.setExpanding(False)

@@ -31,7 +31,7 @@ QPushButton:pressed { background: #2b333f; }
 QPushButton#Toggle { font-family: Consolas, monospace; font-size: 13px;
                      padding: 4px 0px; min-width: 0px; }
 
-QLabel#Title { color: #151a21; font-size: 24px; font-weight: 600; }
+QLabel#Title { color: #000000; font-size: 24px; font-weight: 600; }
 QLabel#Title span { color: #2f6fdb; }
 QLabel#Selected { color: #3c4753; font-size: 13px; }
 QLabel#Hint { color: #6b7787; font-size: 12px; }
