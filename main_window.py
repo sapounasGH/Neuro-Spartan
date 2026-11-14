@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
         self.tabs.setObjectName("Tabs")
         self.tabs.setExpanding(False)
         self.tabs.setDrawBase(False)
-        for label in ("Neurogames", "Biomarkers", "Info", "History"):
+        for label in ("Neurogames", "Biomarkers", "Info", "History", "Sleep"):
             self.tabs.addTab(label)
 
         self.sessions: list = []
@@ -81,6 +81,7 @@ class MainWindow(QMainWindow):
             ("Biomarkers", "NFL, GFAP and Abeta-40 readings."),
             ("Info", "Score, trend chart and recommendations."),
             ("History", "Past sessions, dose and crew events."),
+            ("Sleep", "Sleep data and circadian rhythm."),
         ):
             self.pages.addWidget(self._make_page(name, blurb))
 
