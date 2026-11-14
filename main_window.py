@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from crew import Astronaut
 from crew_loader import CrewLoader
+from neurogames_page import NeuroGamesPage
 from sidebar import CrewSidebar
 
 
@@ -51,23 +52,28 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.selected)
 
         # Tabs: Neurogames | Biomarkers | Info | History
-        page_names = ("Neurogames", "Biomarkers", "Info", "History")
-        page_blurbs = (
-            "Cognitive games and daily sessions.",
-            "NFL, GFAP and Abeta-40 readings.",
-            "Score, trend chart and recommendations.",
-            "Past sessions, dose and crew events.",
-        )
-
         self.tabs = QTabBar()
         self.tabs.setObjectName("Tabs")
         self.tabs.setExpanding(False)
         self.tabs.setDrawBase(False)
-        for label in page_names:
+        for label in ("Neurogames", "Biomarkers", "Info", "History"):
             self.tabs.addTab(label)
 
+        self.sessions: list = []
+
         self.pages = QStackedWidget()
-        for name, blurb in zip(page_names, page_blurbs):
+
+        # Tab 1 - the real WinSCAT game page.
+        self.neurogames = NeuroGamesPage()
+        self.neurogames.session_recorded.connect(self._record_session)
+        self.pages.addWidget(self.neurogames)
+
+        # Tabs 2-4 - still placeholders.
+        for name, blurb in (
+            ("Biomarkers", "NFL, GFAP and Abeta-40 readings."),
+            ("Info", "Score, trend chart and recommendations."),
+            ("History", "Past sessions, dose and crew events."),
+        ):
             self.pages.addWidget(self._make_page(name, blurb))
 
         # One tab switch changes only the stacked panel below.
@@ -127,8 +133,16 @@ class MainWindow(QMainWindow):
         self.selected.setText(
             f"Selected crew member: <b>{member.name}</b> aboard {member.craft}"
         )
+        self.neurogames.set_astronaut(member)
+
+    def _record_session(self, session) -> None:
+        """Keep finished runs so Info and History can read them later."""
+        self.sessions.append(session)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        # Release the SDL surface before Qt tears the window down.
+        self.neurogames.close()
+
         # A request can take up to the fetch timeout; don't tear down under it.
         if self._loader is not None and self._loader.isRunning():
             if not self._loader.wait(11000):
