@@ -32,6 +32,7 @@ class CrewSidebar(QFrame):
         self.setFixedWidth(EXPANDED_WIDTH)
         self._expanded = True
         self._crew: Crew | None = None
+        self._selected_name: str | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 10, 8, 10)
@@ -108,6 +109,14 @@ class CrewSidebar(QFrame):
 
     # ------------------------------------------------------------------- data
     def set_loading(self) -> None:
+        # Remember who is selected BEFORE clearing, because clear() destroys the
+        # current item and the selection would otherwise be lost to refresh().
+        current = self.crew_list.currentItem()
+        if current is not None:
+            chosen = current.data(Qt.UserRole)
+            if chosen is not None:
+                self._selected_name = chosen.name
+
         self.count.setText("connecting\N{HORIZONTAL ELLIPSIS}")
         self.status.setText("")
         self.status.setProperty("state", "")
@@ -116,13 +125,19 @@ class CrewSidebar(QFrame):
         self.refresh.setEnabled(False)
 
     def show_crew(self, crew: Crew) -> None:
+        # Open-Notify does not guarantee the order of its people list, so sort
+        # for a stable list and restore the selection by name rather than by
+        # index - otherwise every refresh snaps to whoever sorts first.
+        previous = self._selected_name
+
         self._crew = crew
         self.crew_list.setEnabled(True)
         self.refresh.setEnabled(True)
         self.count.setText(f"{crew.total} people in space right now")
 
+        members = sorted(crew.members, key=lambda m: (m.craft, m.name))
         self.crew_list.clear()
-        for member in crew.members:
+        for member in members:
             item = QListWidgetItem(str(member))  # "Name (craft)"
             item.setData(Qt.UserRole, member)
             item.setToolTip(f"{member.name}\naboard {member.craft}")
@@ -132,7 +147,13 @@ class CrewSidebar(QFrame):
         self.status.setText(f"{len(crew.members)} loaded from Open-Notify\n{crafts}")
         self.status.setProperty("state", "")
 
-        self.crew_list.setCurrentRow(0)
+        index = 0
+        if previous:
+            for position, member in enumerate(members):
+                if member.name == previous:
+                    index = position
+                    break
+        self.crew_list.setCurrentRow(index)
 
     def show_error(self, message: str) -> None:
         self.refresh.setEnabled(True)
@@ -151,4 +172,7 @@ class CrewSidebar(QFrame):
     def _emit_selection(self) -> None:
         current = self.crew_list.currentItem()
         if current is not None:
-            self.astronaut_selected.emit(current.data(Qt.UserRole))
+            member = current.data(Qt.UserRole)
+            if member is not None:
+                self._selected_name = member.name
+            self.astronaut_selected.emit(member)

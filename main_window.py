@@ -17,6 +17,7 @@ from crew import Astronaut
 from crew_loader import CrewLoader
 from neurogames_page import NeuroGamesPage
 from sidebar import CrewSidebar
+from biomarkers_page import BiomarkersPage
 
 
 class MainWindow(QMainWindow):
@@ -51,42 +52,41 @@ class MainWindow(QMainWindow):
         self.selected.setWordWrap(True)
         content_layout.addWidget(self.selected)
 
-        # Tabs: Neurogames | Biomarkers | Info | History
-        page_names = ("Neurogames", "Biomarkers", "Info", "History")
-        page_blurbs = (
-            "Cognitive games and daily sessions.",
-            "NFL, GFAP and Aβ-40 readings.",
-            "Score, trend chart and recommendations.",
-            "Past sessions, dose and crew events.",
-        )
-
+        # Tabs and pages are built from ONE list below, so they cannot drift
+        # out of sync the way two separate hardcoded lists can.
         self.tabs = QTabBar()
         self.tabs.setObjectName("Tabs")
         self.tabs.setExpanding(False)
         self.tabs.setDrawBase(False)
-        for label in ("Neurogames", "Biomarkers", "Info", "History", "Sleep"):
-            self.tabs.addTab(label)
 
         self.sessions: list = []
 
-        self.pages = QStackedWidget()
-
-        # Tab 1 - the real WinSCAT game page.
+        # Tab 0 - the real WinSCAT game page.
         self.neurogames = NeuroGamesPage()
         self.neurogames.session_recorded.connect(self._record_session)
-        self.pages.addWidget(self.neurogames)
 
-        # Tabs 2-4 - still placeholders.
-        for name, blurb in (
-            ("Biomarkers", "NFL, GFAP and Abeta-40 readings."),
-            ("Info", "Score, trend chart and recommendations."),
-            ("History", "Past sessions, dose and crew events."),
-            ("Sleep", "Sleep data and circadian rhythm."),
-        ):
-            self.pages.addWidget(self._make_page(name, blurb))
+        # Tab 1 - biomarkers plotted from the static file, for live crew names.
+        self.biomarkers = BiomarkersPage()
 
-        # One tab switch changes only the stacked panel below.
-        self.tabs.currentChanged.connect(self.pages.setCurrentIndex)
+        pages: list[tuple[str, QWidget]] = [
+            ("Neurogames", self.neurogames),
+            ("Biomarkers", self.biomarkers),
+            ("Info", self._make_page("Info", "Score, trend chart and recommendations.")),
+            ("History", self._make_page("History", "Past sessions, dose and crew events.")),
+            ("Sleep", self._make_page("Sleep", "Sleep data and circadian rhythm.")),
+        ]
+
+        self.pages = QStackedWidget()
+        for label, widget in pages:
+            self.pages.addWidget(widget)
+            self.tabs.addTab(label)
+
+        self.biomarkers_tab = next(index for index, (label, _) in enumerate(pages)
+                                   if label == "Biomarkers")
+
+        # A tab switch changes only the stacked panel below. Opening the
+        # biomarkers tab re-fetches the crew list so its names stay live.
+        self.tabs.currentChanged.connect(self._on_tab_changed)
 
         content_layout.addWidget(self.tabs)
         content_layout.addWidget(self.pages, 1)
@@ -131,18 +131,28 @@ class MainWindow(QMainWindow):
 
         loader = CrewLoader(self)
         loader.loaded.connect(self.sidebar.show_crew)
+        loader.loaded.connect(self.biomarkers.set_crew)   # names, not hardcoded
         loader.failed.connect(self.sidebar.show_error)
+        loader.failed.connect(self.biomarkers.show_error)
         loader.finished.connect(loader.deleteLater)
         loader.finished.connect(lambda: setattr(self, "_loader", None))
         self._loader = loader
         loader.start()
 
     # ------------------------------------------------------------ ui updates
+    def _on_tab_changed(self, index: int) -> None:
+        """Switch the panel; refresh live names when markers are opened."""
+        self.pages.setCurrentIndex(index)
+        if index == self.biomarkers_tab:
+            self.biomarkers.load_data()      # static file is cheap to re-read
+            self.load_crew()                 # crew names come from the API
+
     def show_astronaut(self, member: Astronaut) -> None:
         self.selected.setText(
             f"Selected crew member: <b>{member.name}</b> aboard {member.craft}"
         )
         self.neurogames.set_astronaut(member)
+        self.biomarkers.select_astronaut(member.name)
 
     def _record_session(self, session) -> None:
         """Keep finished runs so Info and History can read them later."""
