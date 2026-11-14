@@ -53,15 +53,29 @@ if not defined PY (
 for /f "delims=" %%I in ('%PY% -c "import sys;print(sys.version.split()[0])"') do set "PV=%%I"
 echo Using Python %PV%
 
-rem Reuse the venv only if its interpreter actually runs; replace otherwise.
+rem Reuse the venv only if its OWN interpreter is inside the supported band.
+rem Checking merely "does it run" is not enough: a venv built on Python 3.15
+rem runs fine, gets reused, and then pygame has no wheel for it and the whole
+rem install fails - with this script happily reporting "Using Python 3.12".
 set "VENV_OK="
 if exist ".venv\Scripts\python.exe" (
-    ".venv\Scripts\python.exe" -c "import sys; print(sys.version_info[:2])" >nul 2>nul && set "VENV_OK=1"
+    ".venv\Scripts\python.exe" -c "import sys; raise SystemExit(0 if 9 <= sys.version_info[1] <= 13 else 1)" >nul 2>nul && set "VENV_OK=1"
 )
 if not defined VENV_OK (
     if exist ".venv" (
-        echo Existing .venv is broken or unusable - recreating it.
+        echo Existing .venv is broken or built on an unsupported Python:
+        ".venv\Scripts\python.exe" -c "import sys; print('   it uses', sys.version.split()[0])" 2>nul
+        echo Recreating it with the interpreter chosen above ...
         rd /s /q ".venv" 2>nul
+        rem If deletion failed, a running app is holding python.exe. Recreating
+        rem on top of a half-deleted venv is how broken environments get made.
+        if exist ".venv\Scripts\python.exe" (
+            echo [ERROR] Could not delete .venv - it is still in use.
+            echo         Close every running NeuroSpartan window, then re-run this.
+            echo         ^(Task Manager ^> look for python.exe running from .venv^)
+            pause
+            exit /b 1
+        )
     )
     echo Creating virtual environment .venv ...
     %PY% -m venv .venv
