@@ -25,10 +25,11 @@ from PySide6.QtWidgets import (
 )
 
 from crew import Astronaut
-from winscat import Metrics
-from winscat_view import WinSCATView
+from .renderer import WinSCATView
+from .task import Metrics
 
-# WinSCAT defaults; drop these to 6 / 1 for a short demo run.
+# WinSCAT defaults. These are passed to the renderer, so lowering them to e.g.
+# TRIALS = 6 / PRACTICE = 1 really does give a short demo run (~1 min).
 TRIALS = 20
 PRACTICE = 3
 
@@ -106,7 +107,7 @@ class NeuroGamesPage(QWidget):
         root.addLayout(controls)
 
         # --- the game -------------------------------------------------------
-        self.view = WinSCATView()
+        self.view = WinSCATView(trials=TRIALS, practice=PRACTICE)
         self.view.session_finished.connect(self._finish_session)
         self.view.render_failed.connect(self._render_broke)
         root.addWidget(self.view, 0, Qt.AlignHCenter)

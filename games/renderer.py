@@ -24,7 +24,7 @@ import pygame
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QWidget
 
-from winscat import DelayedMTS, Phase, Side
+from .task import PRACTICE_TRIALS, TRIALS, DelayedMTS, Phase, Side
 
 VIEW_SIZE = (720, 470)
 CELL = 46
@@ -69,14 +69,18 @@ class WinSCATView(QWidget):
     session_finished = Signal(object)  # Metrics
     render_failed = Signal(str)        # error text, if the draw loop dies
 
-    def __init__(self, parent: QWidget | None = None, seed: int | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, seed: int | None = None,
+                 trials: int | None = None, practice: int | None = None) -> None:
         super().__init__(parent)
         self.setFixedSize(*VIEW_SIZE)
         # SDL needs a real window handle to paint into.
         self.setAttribute(Qt.WA_NativeWindow, True)
         self.setAttribute(Qt.WA_DontCreateNativeAncestors, True)
 
-        self.game = DelayedMTS(seed=seed)
+        # trial counts the tab can shorten for a demo; None = WinSCAT defaults
+        self.trials = TRIALS if trials is None else trials
+        self.practice = PRACTICE_TRIALS if practice is None else practice
+        self.game = DelayedMTS(seed=seed, trials=self.trials, practice=self.practice)
         self._screen: pygame.Surface | None = None
         self._error: str | None = None
         self._render_error: str | None = None
@@ -153,7 +157,7 @@ class WinSCATView(QWidget):
         if not self._ensure_display():
             return False
         if seed is not None:
-            self.game = DelayedMTS(seed=seed)
+            self.game = DelayedMTS(seed=seed, trials=self.trials, practice=self.practice)
         self._hover = None
         self._timer.stop()
         self.game.start(self._clock_ms())

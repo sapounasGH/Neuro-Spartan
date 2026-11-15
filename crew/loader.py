@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QThread, Signal
 
-from crew import CrewError, fetch_crew
+from .api import CrewError, fetch_crew
 
 
 class CrewLoader(QThread):

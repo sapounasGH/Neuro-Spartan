@@ -12,16 +12,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from crew import Astronaut
-from crew_loader import CrewLoader
-from neurogames_page import NeuroGamesPage
+from biomarkers import BiomarkersPage, group_by_astronaut, load_rows
+from crew import Astronaut, CrewLoader, ISSWidget
+from games import NeuroGamesPage
 from sidebar import CrewSidebar
-from biomarkers_page import BiomarkersPage
-from profile_page import ProfilePage
-from session_store import SessionStore, record_from_session
-from sleep import SleepPage, load_sleepers, DEFAULT_JSON as SLEEP_JSON
-import biomarkers
-from ISS_location import ISSWidget
+from sleep import SleepPage, load_sleepers
+from user import ProfilePage, SessionStore, record_from_session
 
 
 class MainWindow(QMainWindow):
@@ -156,7 +152,7 @@ class MainWindow(QMainWindow):
     def reload_biomarkers(self) -> None:
         """Read the biomarker file once, then hand the same dict to each page."""
         try:
-            self.biomarker_data = biomarkers.group_by_astronaut(biomarkers.load_rows())
+            self.biomarker_data = group_by_astronaut(load_rows())
             self.biomarker_error = None
         except (FileNotFoundError, ValueError, OSError) as exc:
             self.biomarker_data = {}
@@ -168,7 +164,8 @@ class MainWindow(QMainWindow):
     def reload_sleep(self) -> None:
         """Read the sleep file once, then hand it to the page."""
         try:
-            self.sleep_date, self.sleep_people = load_sleepers(SLEEP_JSON)
+            # no path argument: the model already knows where the file lives
+            self.sleep_date, self.sleep_people = load_sleepers()
             self.sleep_error = None
         except (FileNotFoundError, ValueError, OSError, KeyError) as exc:
             self.sleep_date, self.sleep_people = "", []

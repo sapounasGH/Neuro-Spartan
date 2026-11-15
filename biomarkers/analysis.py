@@ -33,7 +33,7 @@ import statistics
 from collections.abc import Iterable
 from pathlib import Path
 
-DATA_FILE = Path(__file__).parent / "server" / "Astronaut_Biomarkers_All_Crew.json"
+from paths import BIOMARKERS_FILE as DATA_FILE
 
 # json key -> display label. ASCII on purpose: printing to a Windows console
 # (cp1252) raises UnicodeEncodeError on the beta glyph. Qt labels can show "Aβ40".

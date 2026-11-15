@@ -1,40 +1,32 @@
-"""sleep_page.py - "Sleep" tab for a Qt application.
+"""Sleep tab: hypnogram, totals and stage breakdown for one astronaut.
 
-Usage in the main application:
+Parsing lives in sleep/model.py; this module is only Qt widgets. MainWindow
+hands the parsed data in through set_data(), so the page reads no file itself
+unless it is constructed with an explicit json_path.
 
-    from sleep_page import SleepPage
+    self.sleep = SleepPage()              # app-managed data
+    self.sleep = SleepPage(other_file)    # reads that file itself (preview)
+    sidebar.astronaut_selected.connect(lambda m: self.sleep.show_astronaut(m.name))
 
-    self.sleep = SleepPage()                      # reads sleep_data.json next to this file
-    self.sleep = SleepPage("path/to/other.json")  # or an explicit file
-    tabs.addTab(self.sleep, "Sleep")
-
-    names = self.sleep.astronaut_names()          # to fill your sidebar
-    sidebar.currentTextChanged.connect(self.sleep.show_astronaut)
-
-show_astronaut(name) shows that astronaut's sleep diagram (hypnogram), totals and
-stage breakdown. The JSON file is only read, never modified.
-
-Supported JSON layouts:
-    {"date": ..., "people": [{"person": ..., "segments": [...]}, ...]}
-    {"person": ..., "date": ..., "segments": [...]}          (single person)
-Each segment: {"start": "YYYY-MM-DDTHH:MM", "end": "...", "stage": "Awake|REM|Light|Deep"}
-
+Run `python -m sleep` for a standalone preview with a stand-in sidebar.
 """
-import json
-import os
-from datetime import datetime, timedelta
+
+from __future__ import annotations
+
+from datetime import timedelta
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from paths import SLEEP_FILE
+from .model import STAGES, fmt_dur, load_sleepers
 
 Qt = QtCore.Qt
 
-STAGES = ["Awake", "REM", "Light", "Deep"]  # top to bottom on the chart
 ONE_HOUR = timedelta(hours=1)               # hour grid step on the chart
 
 # Explicit colours, same palette as the other tabs. Nothing here reads the
-# widget palette: QPalette.WindowText resolves to white in this app, which
-# made every label on this page invisible against the light background.
+# widget palette: QPalette.WindowText resolves to white on a dark-mode desktop,
+# which made every label on this page invisible against the light background.
 INK = "#151a21"          # primary text
 MUTED = "#5a6779"        # secondary text (>=4.5:1 on white)
 FAINT = "#5c6b7f"        # captions (>=4.5:1 on white)
@@ -47,74 +39,6 @@ STAGE_COLORS = {
     "Light": "#4aa3df",
     "Deep": "#2a4bb5",
 }
-# the shared data folder, not next to this file
-DEFAULT_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "server", "sleep_data.json")
-
-
-# --------------------------------------------------------------------------- data
-class Sleeper:
-    """One astronaut's night, parsed from JSON."""
-
-    def __init__(self, name, segments):
-        self.name = name
-        parsed = []
-        for entry in segments:
-            # one malformed segment must not lose the whole night
-            try:
-                start = datetime.fromisoformat(entry["start"])
-                end = datetime.fromisoformat(entry["end"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            stage = entry.get("stage", "Light") if isinstance(entry, dict) else "Light"
-            if stage not in STAGES:
-                stage = "Light"          # unknown label, keep the minutes somewhere
-            parsed.append((start, end, stage))
-
-        self.segments = sorted(parsed, key=lambda s: s[0])
-        self.minutes = {st: 0.0 for st in STAGES}
-        for a, b, st in self.segments:
-            self.minutes[st] += (b - a).total_seconds() / 60
-
-        if self.segments:
-            self.start = self.segments[0][0]
-            self.end = self.segments[-1][1]
-            self.in_bed = (self.end - self.start).total_seconds() / 60
-            self.asleep = self.in_bed - self.minutes["Awake"]
-        else:
-            self.start = self.end = None
-            self.in_bed = 0.0
-            self.asleep = 0.0
-
-    @property
-    def valid(self):
-        return bool(self.segments)
-
-
-def load_sleepers(path):
-    """Read the sleep file. Returns (date, sleepers); skips unusable people."""
-    with open(path, encoding="utf-8") as handle:
-        data = json.load(handle)
-
-    if isinstance(data, list):                      # bare list of people
-        data = {"people": data}
-    if not isinstance(data, dict):
-        raise ValueError("sleep file is neither an object nor a list")
-
-    people = []
-    for person in data.get("people", [data]):
-        try:
-            sleeper = Sleeper(person.get("person", "Unknown"), person.get("segments", []))
-        except (AttributeError, TypeError, ValueError):
-            continue
-        if sleeper.valid:
-            people.append(sleeper)
-    return data.get("date", ""), people
-
-
-def fmt_dur(minutes):
-    minutes = int(round(minutes))
-    return f"{minutes // 60}h {minutes % 60:02d}m"
 
 
 # --------------------------------------------------------------------------- chart
@@ -432,16 +356,18 @@ class SleepPage(QtWidgets.QWidget):
         self.selection_changed.emit(s.name)
 
 
-# --------------------------------------------------------------------------- standalone preview
-if __name__ == "__main__":
+def main(argv=None):
+    """Standalone preview. The app itself never calls this."""
     import sys
 
-    app = QtWidgets.QApplication(sys.argv)
-    # Demo only: a stand-in sidebar. In the real application your own sidebar
-    # calls page.show_astronaut(name).
-    page = SleepPage(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_JSON)
+    argv = list(sys.argv if argv is None else argv)
+    app = QtWidgets.QApplication(argv)
+
+    # Demo only: a stand-in sidebar. In the real application MainWindow owns
+    # the crew rail and forwards selections through show_astronaut().
+    page = SleepPage(argv[1] if len(argv) > 1 else SLEEP_FILE)
     demo = QtWidgets.QWidget()
-    demo.setWindowTitle("Sleep (demo)")
+    demo.setWindowTitle("Sleep (preview)")
     lay = QtWidgets.QHBoxLayout(demo)
     side = QtWidgets.QListWidget()
     side.setFixedWidth(200)
@@ -452,4 +378,8 @@ if __name__ == "__main__":
     lay.addWidget(page, 1)
     demo.resize(1000, 640)
     demo.show()
-    sys.exit(getattr(app, "exec", None) and app.exec() or app.exec_())
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -30,7 +30,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-SESSIONS_FILE = Path(__file__).parent / "server" / "game_sessions.json"
+from paths import SESSIONS_FILE
 
 
 class SessionStore:
@@ -169,7 +169,7 @@ class SessionStore:
 
 
 def record_from_session(session) -> dict:
-    """Turn a neurogames_page.Session into a storable dict."""
+    """Turn a games.page.Session into a storable dict."""
     metrics = session.metrics
     return {
         "astronaut": session.member.name,

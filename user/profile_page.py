@@ -35,9 +35,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from biomarkers import analysis as biomarkers
 from crew import Astronaut
-import biomarkers
-from session_store import SessionStore
+from paths import SEND_ICON
+
+from .session_store import SessionStore
 
 INK = QColor("#151a21")
 MUTED = QColor("#6b7787")
@@ -48,9 +50,6 @@ RED = QColor("#dd3b28")
 GRID = QColor("#e2e8ef")
 
 MARKER_COLOURS = {"NFL": BLUE, "GFAP": AMBER, "Abeta40": GREEN}
-
-# the hand-drawn face from assets/, used as the button icon
-SEND_ICON = Path(__file__).resolve().parent / "assets" / "image.png"
 
 # The app-wide QPushButton rule in theme.py is built for the dark sidebar
 # (#9aa6b6 text on transparent) - unreadable on this white card, so this

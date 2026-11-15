@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from crew import Astronaut
-import biomarkers
+from . import analysis as biomarkers
 
 INK = QColor("#151a21")
 MUTED = QColor("#6b7787")
