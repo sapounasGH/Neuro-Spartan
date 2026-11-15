@@ -262,7 +262,7 @@ class ProfilePage(QWidget):
 
         self.avatar.setText(initials(member.name))
         self.name.setText(member.name)
-        self.station.setText(f"station: {member.craft}")
+        self.station.setText(f"Station: {member.craft}")
 
         records = self._store.for_astronaut(member.name) if self._store else []
         summary = biomarkers.summary(member.name, self._grouped)
@@ -280,9 +280,9 @@ class ProfilePage(QWidget):
             else "no biomarker records for this crew member"
         )
         self.counters.setText(
-            f"sessions: {stats.get('sessions', 0)}<br>"
-            f"last played: {pretty_timestamp(stats.get('last_played'))}<br>"
-            f"marker samples: {summary['samples']}"
+            f"Sessions: {stats.get('sessions', 0)}<br>"
+            f"Last played: {pretty_timestamp(stats.get('last_played'))}<br>"
+            f"Marker Samples: {summary['samples']}"
         )
 
         self._fill_games(records)
