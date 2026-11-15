@@ -17,8 +17,8 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequ
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 ISS_URL = "http://api.open-notify.org/iss-now.json"
-REFRESH_MS = 5000
-TIMEOUT_MS = 4000
+REFRESH_MS = 10000
+TIMEOUT_MS = 5000
 
 
 class ISSWidget(QWidget):
