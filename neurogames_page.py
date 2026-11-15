@@ -6,8 +6,9 @@ Flow the panel walks the astronaut through:
 2. the game itself                 - sample -> 5 s delay -> two grids, 3 practice + 20 trials
 3. "Thank you - data received"     - shown inside the game, mirrored into the summary line
 
-Every finished session is kept in ``self.sessions`` so the Info and History tabs
-can read scores later without re-running anything.
+Every finished session is reported through ``session_recorded`` and persisted
+by MainWindow into server/game_sessions.json, so the Profile tab can show a
+real history that survives restarts.
 """
 
 from __future__ import annotations

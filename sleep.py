@@ -22,22 +22,34 @@ Each segment: {"start": "YYYY-MM-DDTHH:MM", "end": "...", "stage": "Awake|REM|Li
 """
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
-import PySide6 as QtCore
-import PySide6.QtWidgets as QtWidgets, PySide6.QtGui as QtGui
+from PySide6 import QtCore, QtGui, QtWidgets
 
 
 Qt = QtCore.Qt
 
 STAGES = ["Awake", "REM", "Light", "Deep"]  # top to bottom on the chart
+ONE_HOUR = timedelta(hours=1)               # hour grid step on the chart
+
+# Explicit colours, same palette as the other tabs. Nothing here reads the
+# widget palette: QPalette.WindowText resolves to white in this app, which
+# made every label on this page invisible against the light background.
+INK = "#151a21"          # primary text
+MUTED = "#5a6779"        # secondary text (>=4.5:1 on white)
+FAINT = "#5c6b7f"        # captions (>=4.5:1 on white)
+GRID = "#e2e8ef"         # chart grid lines
+PANEL_BG = "#ffffff"
+PANEL_BORDER = "#dde4ec"
 STAGE_COLORS = {
     "Awake": "#e4572e",
     "REM": "#a45ee5",
     "Light": "#4aa3df",
     "Deep": "#2a4bb5",
 }
-DEFAULT_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sleep_data.json")
+# the shared data folder, not next to this file
+DEFAULT_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "server", "sleep_data.json")
 
 
 # --------------------------------------------------------------------------- data
@@ -46,29 +58,57 @@ class Sleeper:
 
     def __init__(self, name, segments):
         self.name = name
-        self.segments = sorted(
-            (
-                (datetime.fromisoformat(s["start"]), datetime.fromisoformat(s["end"]), s["stage"])
-                for s in segments
-            ),
-            key=lambda s: s[0],
-        )
+        parsed = []
+        for entry in segments:
+            # one malformed segment must not lose the whole night
+            try:
+                start = datetime.fromisoformat(entry["start"])
+                end = datetime.fromisoformat(entry["end"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            stage = entry.get("stage", "Light") if isinstance(entry, dict) else "Light"
+            if stage not in STAGES:
+                stage = "Light"          # unknown label, keep the minutes somewhere
+            parsed.append((start, end, stage))
+
+        self.segments = sorted(parsed, key=lambda s: s[0])
         self.minutes = {st: 0.0 for st in STAGES}
         for a, b, st in self.segments:
-            self.minutes[st] = self.minutes.get(st, 0.0) + (b - a).total_seconds() / 60
-        self.start = self.segments[0][0]
-        self.end = self.segments[-1][1]
-        self.in_bed = (self.end - self.start).total_seconds() / 60
-        self.asleep = self.in_bed - self.minutes["Awake"]
+            self.minutes[st] += (b - a).total_seconds() / 60
+
+        if self.segments:
+            self.start = self.segments[0][0]
+            self.end = self.segments[-1][1]
+            self.in_bed = (self.end - self.start).total_seconds() / 60
+            self.asleep = self.in_bed - self.minutes["Awake"]
+        else:
+            self.start = self.end = None
+            self.in_bed = 0.0
+            self.asleep = 0.0
+
+    @property
+    def valid(self):
+        return bool(self.segments)
 
 
 def load_sleepers(path):
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    if "people" in data:
-        people = [Sleeper(p["person"], p["segments"]) for p in data["people"]]
-    else:
-        people = [Sleeper(data.get("person", "Unknown"), data["segments"])]
+    """Read the sleep file. Returns (date, sleepers); skips unusable people."""
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    if isinstance(data, list):                      # bare list of people
+        data = {"people": data}
+    if not isinstance(data, dict):
+        raise ValueError("sleep file is neither an object nor a list")
+
+    people = []
+    for person in data.get("people", [data]):
+        try:
+            sleeper = Sleeper(person.get("person", "Unknown"), person.get("segments", []))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if sleeper.valid:
+            people.append(sleeper)
     return data.get("date", ""), people
 
 
@@ -81,14 +121,18 @@ def fmt_dur(minutes):
 class HypnogramWidget(QtWidgets.QWidget):
     """Paints the sleep stages of one Sleeper as a stepped timeline."""
 
-    MARGIN_L, MARGIN_R, MARGIN_T, MARGIN_B = 62, 28, 10, 28
+    MARGIN_L, MARGIN_R, MARGIN_T, MARGIN_B = 66, 28, 16, 30
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.sleeper = None
-        self.setMinimumHeight(230)
+        self.setMinimumHeight(240)
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         self.setMouseTracking(True)
+        # styled background so the QSS below is actually painted by Qt
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(
+            f"background: {PANEL_BG}; border: 1px solid {PANEL_BORDER}; border-radius: 6px;")
 
     def set_sleeper(self, sleeper):
         self.sleeper = sleeper
@@ -96,11 +140,12 @@ class HypnogramWidget(QtWidgets.QWidget):
 
     # -- geometry helpers
     def _axis(self):
+        """Plot time range, rounded outward to whole hours."""
         s = self.sleeper
         t0 = s.start.replace(minute=0, second=0, microsecond=0)
         t1 = s.end.replace(minute=0, second=0, microsecond=0)
-        if t1 < s.end:
-            t1 = t1.replace() + (datetime(2000, 1, 1, 1) - datetime(2000, 1, 1))
+        if t1 < s.end:                       # end mid-hour -> show the whole hour
+            t1 = t1 + ONE_HOUR
         return t0, t1
 
     def _plot_rect(self):
@@ -122,13 +167,12 @@ class HypnogramWidget(QtWidgets.QWidget):
     def paintEvent(self, _event):
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        pal = self.palette()
-        text_col = pal.color(QtGui.QPalette.ColorRole.WindowText)
-        grid_col = QtGui.QColor(text_col)
-        grid_col.setAlpha(40)
+        text_col = QtGui.QColor(INK)
+        muted_col = QtGui.QColor(MUTED)
+        grid_col = QtGui.QColor(GRID)
 
-        if self.sleeper is None:
-            p.setPen(text_col)
+        if self.sleeper is None or self.sleeper.start is None:
+            p.setPen(muted_col)
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No sleep data")
             return
 
@@ -138,14 +182,16 @@ class HypnogramWidget(QtWidgets.QWidget):
         row_h = rect.height() / len(STAGES)
 
         # row guides and stage labels
-        p.setFont(self.font())
+        axis_font = QtGui.QFont(self.font())
+        axis_font.setPointSizeF(max(7.0, axis_font.pointSizeF() * 0.85))
+        p.setFont(axis_font)
         for i, st in enumerate(STAGES):
             y = rect.top() + i * row_h
             p.setPen(QtGui.QPen(grid_col, 1))
             p.drawLine(QtCore.QPointF(rect.left(), y + row_h), QtCore.QPointF(rect.right(), y + row_h))
-            p.setPen(text_col)
+            p.setPen(muted_col)
             p.drawText(
-                QtCore.QRectF(0, y, self.MARGIN_L - 8, row_h),
+                QtCore.QRectF(0, y, self.MARGIN_L - 10, row_h),
                 int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter),
                 st,
             )
@@ -154,20 +200,20 @@ class HypnogramWidget(QtWidgets.QWidget):
         total_h = max(1, int((t1 - t0).total_seconds() // 3600))
         step = 1 if rect.width() / total_h > 46 else 2
         for h in range(0, total_h + 1, step):
-            t = t0 + (datetime(2000, 1, 1, 1) - datetime(2000, 1, 1)) * h
+            t = t0 + ONE_HOUR * h
             x = self._x(t, t0, t1, rect)
             p.setPen(QtGui.QPen(grid_col, 1))
             p.drawLine(QtCore.QPointF(x, rect.top()), QtCore.QPointF(x, rect.bottom()))
-            p.setPen(text_col)
+            p.setPen(muted_col)
             p.drawText(
-                QtCore.QRectF(x - 24, rect.bottom() + 4, 48, 18),
+                QtCore.QRectF(x - 24, rect.bottom() + 6, 48, 18),
                 int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
                 t.strftime("%H:%M"),
             )
 
         # connectors between consecutive stages
-        conn = QtGui.QColor(text_col)
-        conn.setAlpha(110)
+        conn = QtGui.QColor(MUTED)
+        conn.setAlpha(120)
         p.setPen(QtGui.QPen(conn, 1))
         prev = None
         for a, b, st in s.segments:
@@ -190,7 +236,7 @@ class HypnogramWidget(QtWidgets.QWidget):
 
     # -- hover tooltip
     def mouseMoveEvent(self, event):
-        if self.sleeper is None:
+        if self.sleeper is None or self.sleeper.start is None:
             return
         pos = event.position() if hasattr(event, "position") else QtCore.QPointF(event.pos())
         rect = self._plot_rect()
@@ -221,18 +267,21 @@ class StageRow(QtWidgets.QWidget):
         swatch.setStyleSheet(f"background:{STAGE_COLORS[stage]}; border-radius:3px;")
         self.name = QtWidgets.QLabel(stage)
         self.name.setMinimumWidth(48)
+        self.name.setStyleSheet(f"color: {INK}; font-size: 12px;")
         self.time = QtWidgets.QLabel()
         self.time.setMinimumWidth(70)
+        self.time.setStyleSheet(f"color: {MUTED}; font-family: Consolas, monospace; font-size: 12px;")
         self.bar = QtWidgets.QProgressBar()
         self.bar.setRange(0, 1000)
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(8)
         self.bar.setStyleSheet(
-            "QProgressBar{border:none;border-radius:4px;background:rgba(128,128,128,60);}"
+            "QProgressBar{border:none;border-radius:4px;background:#e9edf2;}"
             f"QProgressBar::chunk{{border-radius:4px;background:{STAGE_COLORS[stage]};}}"
         )
         self.pct = QtWidgets.QLabel()
         self.pct.setMinimumWidth(40)
+        self.pct.setStyleSheet(f"color: {INK}; font-family: Consolas, monospace; font-size: 12px;")
         self.pct.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         for w in (swatch, self.name, self.time):
             lay.addWidget(w)
@@ -250,79 +299,100 @@ class StageRow(QtWidgets.QWidget):
 class SleepPage(QtWidgets.QWidget):
     """Sidebar of astronauts + sleep diagram for the selected one."""
 
-    selection_changed = QtCore.Signal(str) if hasattr(QtCore, "Signal") else QtCore.pyqtSignal(str)
+    selection_changed = QtCore.Signal(str)
 
     def __init__(self, json_path=None, parent=None):
+        """json_path=None means "the app will hand me the data" (set_data()).
+
+        Passing a path makes the page read it itself, which is what the
+        standalone preview at the bottom of this file does.
+        """
         super().__init__(parent)
-        self.json_path = json_path or DEFAULT_JSON
+        self.json_path = json_path
         self.date = ""
         self.sleepers = []
         self._current = None
         self._build_ui()
-        self.load(self.json_path)
+        if json_path:
+            self.load(json_path)
 
     # -- UI
     def _build_ui(self):
         d = QtWidgets.QVBoxLayout(self)
-        d.setContentsMargins(20, 16, 20, 16)
-        d.setSpacing(14)
+        d.setContentsMargins(0, 0, 0, 0)
+        d.setSpacing(12)
 
         self.night = QtWidgets.QLabel()
-        self.night.setStyleSheet("color: palette(mid);")
+        self.night.setStyleSheet(
+            f"color: {FAINT}; font-family: Consolas, monospace;"
+            f"font-size: 11px; letter-spacing: 2px;")
+
         self.title = QtWidgets.QLabel()
-        tf = self.title.font()
-        tf.setPointSizeF(tf.pointSizeF() * 1.7)
-        tf.setBold(True)
-        self.title.setFont(tf)
+        self.title.setStyleSheet(f"color: {INK}; font-size: 21px; font-weight: 600;")
+
         self.span = QtWidgets.QLabel()
-        self.span.setStyleSheet("color: palette(mid);")
+        self.span.setStyleSheet(f"color: {MUTED}; font-size: 12.5px;")
+
         d.addWidget(self.night)
         d.addWidget(self.title)
         d.addWidget(self.span)
 
-        stats = QtWidgets.QHBoxLayout()
-        stats.setSpacing(28)
+        # totals in the same card style the other tabs use
+        card = QtWidgets.QFrame()
+        card.setObjectName("Placeholder")          # styled by theme.py
+        card_row = QtWidgets.QHBoxLayout(card)
+        card_row.setContentsMargins(16, 12, 16, 12)
+        card_row.setSpacing(34)
+
         self.stat_labels = {}
         for key, caption in (("in_bed", "IN BED"), ("asleep", "ASLEEP"), ("eff", "EFFICIENCY")):
             box = QtWidgets.QVBoxLayout()
-            box.setSpacing(0)
+            box.setSpacing(2)
             cap = QtWidgets.QLabel(caption)
-            cf = cap.font()
-            cf.setPointSizeF(cf.pointSizeF() * 0.8)
-            cap.setFont(cf)
-            cap.setStyleSheet("color: palette(mid);")
+            cap.setStyleSheet(
+                f"color: {FAINT}; font-size: 10px; font-weight: 600; letter-spacing: 1px;")
             val = QtWidgets.QLabel("-")
-            vf = val.font()
-            vf.setPointSizeF(vf.pointSizeF() * 1.6)
-            val.setFont(vf)
+            val.setStyleSheet(f"color: {INK}; font-family: Consolas, monospace; font-size: 19px;")
             box.addWidget(cap)
             box.addWidget(val)
-            stats.addLayout(box)
+            card_row.addLayout(box)
             self.stat_labels[key] = val
-        stats.addStretch(1)
-        d.addLayout(stats)
+        card_row.addStretch(1)
+        d.addWidget(card)
 
         self.chart = HypnogramWidget()
         d.addWidget(self.chart, 1)
+
+        rows_card = QtWidgets.QFrame()
+        rows_card.setObjectName("Placeholder")
+        rows_box = QtWidgets.QVBoxLayout(rows_card)
+        rows_box.setContentsMargins(16, 12, 16, 12)
+        rows_box.setSpacing(8)
 
         self.rows = {}
         for st in STAGES:
             row = StageRow(st)
             self.rows[st] = row
-            d.addWidget(row)
+            rows_box.addWidget(row)
+        d.addWidget(rows_card)
 
     # -- data
-    def load(self, path):
-        """(Re)load the JSON file; keeps the current astronaut if still present."""
+    def set_data(self, date, sleepers):
+        """Receive already-parsed data. The page reads no file of its own."""
         previous = self._current.name if self._current else None
-        self.json_path = path
-        self.date, self.sleepers = load_sleepers(path)
+        self.date = date
+        self.sleepers = list(sleepers)
         names = self.astronaut_names()
         if names:
             self.show_astronaut(previous if previous in names else names[0])
         else:
             self._current = None
             self.chart.set_sleeper(None)
+
+    def load(self, path):
+        """Standalone helper: read the file and pass it to set_data()."""
+        self.json_path = path
+        self.set_data(*load_sleepers(path))
 
     def astronaut_names(self):
         """Names in file order, e.g. to fill the application's sidebar."""
@@ -342,13 +412,23 @@ class SleepPage(QtWidgets.QWidget):
         self._current = s
         self.night.setText(f"NIGHT OF {self.date}" if self.date else "")
         self.title.setText(s.name)
+        self.chart.set_sleeper(s)
+
+        if s.start is None or not s.in_bed:
+            self.span.setText("no usable segments in the sleep file")
+            for key in ("in_bed", "asleep", "eff"):
+                self.stat_labels[key].setText("-")
+            for row_w in self.rows.values():
+                row_w.set_values(0.0, 0.0)
+            self.selection_changed.emit(s.name)
+            return
+
         self.span.setText(f"Asleep from {s.start:%H:%M} to {s.end:%H:%M}")
         self.stat_labels["in_bed"].setText(fmt_dur(s.in_bed))
         self.stat_labels["asleep"].setText(fmt_dur(s.asleep))
         self.stat_labels["eff"].setText(f"{s.asleep / s.in_bed * 100:.0f}%")
         for st, row_w in self.rows.items():
             row_w.set_values(s.minutes[st], s.in_bed)
-        self.chart.set_sleeper(s)
         self.selection_changed.emit(s.name)
 
 
@@ -359,7 +439,7 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     # Demo only: a stand-in sidebar. In the real application your own sidebar
     # calls page.show_astronaut(name).
-    page = SleepPage(sys.argv[1] if len(sys.argv) > 1 else None)
+    page = SleepPage(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_JSON)
     demo = QtWidgets.QWidget()
     demo.setWindowTitle("Sleep (demo)")
     lay = QtWidgets.QHBoxLayout(demo)

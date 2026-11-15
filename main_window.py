@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -18,6 +17,10 @@ from crew_loader import CrewLoader
 from neurogames_page import NeuroGamesPage
 from sidebar import CrewSidebar
 from biomarkers_page import BiomarkersPage
+from profile_page import ProfilePage
+from session_store import SessionStore, record_from_session
+from sleep import SleepPage, load_sleepers, DEFAULT_JSON as SLEEP_JSON
+import biomarkers
 
 
 class MainWindow(QMainWindow):
@@ -61,32 +64,48 @@ class MainWindow(QMainWindow):
 
         self.sessions: list = []
 
-        # Tab 0 - the real WinSCAT game page.
+        # --- shared data, loaded once here and handed to the pages ----------
+        self.store = SessionStore()
+        self.biomarker_data: dict[str, list[dict]] = {}
+        self.biomarker_error: str | None = None
+        self.sleep_date: str = ""
+        self.sleep_people: list = []
+        self.sleep_error: str | None = None
+
+        # Tab 0 - the real WinSCAT game page. MainWindow persists finished runs,
+        # so the page itself does not hold the store.
         self.neurogames = NeuroGamesPage()
         self.neurogames.session_recorded.connect(self._record_session)
 
         # Tab 1 - biomarkers plotted from the static file, for live crew names.
         self.biomarkers = BiomarkersPage()
+        self.biomarkers.reload_requested.connect(self.reload_biomarkers)
+
+        # Tab 2 - profile: identity + game history + biomarker record.
+        self.profile = ProfilePage()
+        self.profile.set_store(self.store)
+
+        # Tab 4 - sleep: hypnogram per astronaut, data handed in like the rest.
+        self.sleep = SleepPage()
 
         pages: list[tuple[str, QWidget]] = [
             ("Neurogames", self.neurogames),
             ("Biomarkers", self.biomarkers),
-            ("Info", self._make_page("Info", "Score, trend chart and recommendations.")),
-            ("History", self._make_page("History", "Past sessions, dose and crew events.")),
-            ("Sleep", self._make_page("Sleep", "Sleep data and circadian rhythm.")),
+            ("Sleep", self.sleep),
+            ("Profile", self.profile),
         ]
+
+        self.reload_biomarkers()
+        self.reload_sleep()
 
         self.pages = QStackedWidget()
         for label, widget in pages:
             self.pages.addWidget(widget)
             self.tabs.addTab(label)
 
-        self.biomarkers_tab = next(index for index, (label, _) in enumerate(pages)
-                                   if label == "Biomarkers")
-
-        # A tab switch changes only the stacked panel below. Opening the
-        # biomarkers tab re-fetches the crew list so its names stay live.
-        self.tabs.currentChanged.connect(self._on_tab_changed)
+        # A tab switch changes only the stacked panel below. Crew names are
+        # fetched once at startup and handed to each page - see load_crew().
+        self.tabs.currentChanged.connect(self.pages.setCurrentIndex)
 
         content_layout.addWidget(self.tabs)
         content_layout.addWidget(self.pages, 1)
@@ -96,32 +115,6 @@ class MainWindow(QMainWindow):
 
         self._loader: CrewLoader | None = None
         self.load_crew()
-
-    # ---------------------------------------------------------------- pages
-    def _make_page(self, name: str, blurb: str) -> QFrame:
-        """One panel: the tab's name large (placeholder for now) + a blurb."""
-        page = QFrame()
-        page.setObjectName("Placeholder")
-        lay = QVBoxLayout(page)
-        lay.setContentsMargins(18, 18, 18, 18)
-        lay.setSpacing(8)
-
-        header = QLabel(name.upper())
-        header.setObjectName("PageTitle")
-        lay.addWidget(header)
-
-        big = QLabel(name)
-        big.setObjectName("PageName")
-        lay.addWidget(big)
-
-        note = QLabel(f"{blurb}\n\nThis panel changes when you select the "
-                      f"'{name}' tab. Content goes here next.")
-        note.setObjectName("Hint")
-        note.setWordWrap(True)
-        lay.addWidget(note)
-
-        lay.addStretch(1)
-        return page
 
     # ---------------------------------------------------------------- network
     def load_crew(self) -> None:
@@ -140,23 +133,44 @@ class MainWindow(QMainWindow):
         loader.start()
 
     # ------------------------------------------------------------ ui updates
-    def _on_tab_changed(self, index: int) -> None:
-        """Switch the panel; refresh live names when markers are opened."""
-        self.pages.setCurrentIndex(index)
-        if index == self.biomarkers_tab:
-            self.biomarkers.load_data()      # static file is cheap to re-read
-            self.load_crew()                 # crew names come from the API
-
     def show_astronaut(self, member: Astronaut) -> None:
         self.selected.setText(
             f"Selected crew member: <b>{member.name}</b> aboard {member.craft}"
         )
         self.neurogames.set_astronaut(member)
         self.biomarkers.select_astronaut(member.name)
+        self.profile.show_astronaut(member)
+        self.sleep.show_astronaut(member.name)
+
+    def reload_biomarkers(self) -> None:
+        """Read the biomarker file once, then hand the same dict to each page."""
+        try:
+            self.biomarker_data = biomarkers.group_by_astronaut(biomarkers.load_rows())
+            self.biomarker_error = None
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            self.biomarker_data = {}
+            self.biomarker_error = str(exc)
+
+        self.biomarkers.set_biomarkers(self.biomarker_data, self.biomarker_error)
+        self.profile.set_biomarkers(self.biomarker_data)
+
+    def reload_sleep(self) -> None:
+        """Read the sleep file once, then hand it to the page."""
+        try:
+            self.sleep_date, self.sleep_people = load_sleepers(SLEEP_JSON)
+            self.sleep_error = None
+        except (FileNotFoundError, ValueError, OSError, KeyError) as exc:
+            self.sleep_date, self.sleep_people = "", []
+            self.sleep_error = str(exc)
+        self.sleep.set_data(self.sleep_date, self.sleep_people)
 
     def _record_session(self, session) -> None:
-        """Keep finished runs so Info and History can read them later."""
+        """Persist a finished run, then let the profile tab show it."""
+        self.store.add(record_from_session(session))
         self.sessions.append(session)
+        self.profile.set_store(self.store)
+        if self.store.error:
+            self.statusBar().showMessage(self.store.error, 8000)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming
         # Release the SDL surface before Qt tears the window down.

@@ -26,7 +26,7 @@ from PySide6.QtCharts import (
     QScatterSeries,
     QValueAxis,
 )
-from PySide6.QtCore import Qt, QMargins, QPointF
+from PySide6.QtCore import Qt, QMargins, QPointF, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
@@ -54,6 +54,9 @@ MARKER_COLOURS = {"NFL": BLUE, "GFAP": AMBER, "Abeta40": GREEN}
 
 class BiomarkersPage(QWidget):
     """Pick a live crew member, see every statistic plotted."""
+
+    # the file is owned by MainWindow; this only asks it to re-read on demand
+    reload_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -91,7 +94,7 @@ class BiomarkersPage(QWidget):
         row.addWidget(self.picker, 1)
 
         self.reload = QPushButton("Reload data")
-        self.reload.clicked.connect(self.load_data)
+        self.reload.clicked.connect(self.reload_requested.emit)
         row.addWidget(self.reload)
 
         self.status = QLabel("waiting for the crew list")
@@ -122,17 +125,16 @@ class BiomarkersPage(QWidget):
         self.source.setObjectName("Hint")
         root.addWidget(self.source)
 
-        self.load_data()
+        # data arrives from MainWindow via set_biomarkers(); this page reads no
+        # files itself, so it starts in an explicitly empty state.
+        self._show_selected()
 
     # -------------------------------------------------------------- loading
-    def load_data(self) -> None:
-        """Read the static file. Fast, but guarded so the tab never dies."""
-        try:
-            self._grouped = biomarkers.group_by_astronaut(biomarkers.load_rows())
-            self._load_error = None
-        except (FileNotFoundError, ValueError, OSError) as exc:
-            self._grouped = {}
-            self._load_error = str(exc)
+    def set_biomarkers(self, grouped: dict[str, list[dict]],
+                       error: str | None = None) -> None:
+        """Receive the parsed dataset. This page never reads the file itself."""
+        self._grouped = grouped
+        self._load_error = error
 
         records = sum(len(v) for v in self._grouped.values())
         self.source.setText(
