@@ -27,3 +27,5 @@ Then, by comparing all diagrams, we can understand, potential dangers to the res
     requests==2.34.2
 - The required path for the JSON files is C:\Projects\Neuro-Spartan\server
 - Best project path: C:\Projects
+
+![hippo](https://tenor.com/mSGv6iwzuI1.gif)
