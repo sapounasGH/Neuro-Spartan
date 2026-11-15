@@ -24,13 +24,9 @@ import json
 import os
 from datetime import datetime
 
-try:
-    from PySide6 import QtCore, QtGui, QtWidgets
-except ImportError:
-    try:
-        from PyQt6 import QtCore, QtGui, QtWidgets
-    except ImportError:
-        from PyQt5 import QtCore, QtGui, QtWidgets
+import PySide6 as QtCore
+import PySide6.QtWidgets as QtWidgets, PySide6.QtGui as QtGui
+
 
 Qt = QtCore.Qt
 
