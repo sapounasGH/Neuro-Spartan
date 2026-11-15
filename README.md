@@ -22,8 +22,8 @@ Then, by comparing all diagrams, we can understand, potential dangers to the res
 ## Technical
 
 - Runs on Python 3.12 and requires the following libraries: 
-    PySide6==6.12.0
-    pygame==2.6.1
+    PySide6==6.12.0, 
+    pygame==2.6.1, 
     requests==2.34.2
 - The required path for the JSON files is C:\Projects\Neuro-Spartan\server
     Best project path: C:\Projects
