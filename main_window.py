@@ -21,6 +21,7 @@ from profile_page import ProfilePage
 from session_store import SessionStore, record_from_session
 from sleep import SleepPage, load_sleepers, DEFAULT_JSON as SLEEP_JSON
 import biomarkers
+from ISS_location import ISSWidget
 
 
 class MainWindow(QMainWindow):
@@ -29,7 +30,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("NeuroSpartan")
         self.resize(1280, 800)
         self.setMinimumSize(960, 600)
-
+        header = QHBoxLayout()
+        header.addWidget(title)
+        header.addStretch(1)
+        self.iss = ISSWidget()
+        content_layout.addLayout(header)
         central = QWidget()
         layout = QHBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
