@@ -1,7 +1,7 @@
 # NeuroSpartan 🛡️🧠🪐
 
 ## About the project
-This is a project made for the Nasa Space Apps Hackathon 
+This is a project made for the Nasa Space Apps Hackathon, that runs on Python 3.12.
 
 ## Title
 On-site predictive monitoring of impact on cognitive function, due to radiation exposure, on long term missions on planets without a global magnetic field
