@@ -48,4 +48,45 @@ QTabBar#Tabs::tab:selected { background: #ffffff; color: #2f6fdb; font-weight: 6
 
 QLabel#PageTitle { color: #151a21; font-size: 20px; font-weight: 600; }
 QLabel#PageName { color: #2f6fdb; font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+QComboBox {
+    color: #e6e6e6;
+    background-color: #2b2b2b;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+QComboBox:focus {
+    border: 1px solid #7aa7d9;
+}
+QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+QComboBox QAbstractItemView {
+    color: #e6e6e6;
+    background-color: #2b2b2b;
+    selection-background-color: #3d5a80;
+    selection-color: #ffffff;
+    border: 1px solid #555;
+}
+QGroupBox {
+    color: #e6e6e6;
+    background-color: #242424;
+    border: 1px solid #555;
+    border-radius: 6px;
+    margin-top: 12px;
+    padding: 10px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 10px;
+    padding: 0 4px;
+    color: #9ecbff;
+    background-color: #242424;
+}
+QGroupBox QLabel {
+    color: #e6e6e6;
+    background: transparent;
+}
 """

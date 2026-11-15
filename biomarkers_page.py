@@ -85,8 +85,9 @@ class BiomarkersPage(QWidget):
 
         # --- crew picker: driven entirely by the live API ------------------
         row = QHBoxLayout()
-        row.setSpacing(8)
-        row.addWidget(QLabel("Crew member"))
+        label = QLabel("Crew member")
+        label.setStyleSheet("color: #333; font-weight: bold; padding: 4px;")
+        row.addWidget(label)
 
         self.picker = QComboBox()
         self.picker.setMinimumWidth(260)
