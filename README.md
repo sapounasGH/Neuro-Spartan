@@ -26,4 +26,4 @@ Then, by comparing all diagrams, we can understand, potential dangers to the res
     pygame==2.6.1, 
     requests==2.34.2
 - The required path for the JSON files is C:\Projects\Neuro-Spartan\server
-    Best project path: C:\Projects
+- Best project path: C:\Projects
