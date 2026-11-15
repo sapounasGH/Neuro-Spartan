@@ -17,5 +17,5 @@ Our mission is to:
 3. Compare data from biomarkers and cognitive function based on sleep quality, in order to regulate our results.
 4. Send the data back to Earth, or send it to for further assesment to CIMON (Crew Interactive Mobile Companion).
 
-Then, by comparing all diagrams, we can understand, potential dangers to the rest of the crew (such as passage through a high-radiation patch of space or solar storms).
+Then, by comparing all diagrams, we can understand, potential dangers to the rest of the crew (such as passage through a high-radiation patch of space or solar storms) .
 
