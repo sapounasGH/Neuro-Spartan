@@ -13,11 +13,13 @@ set_store() / set_biomarkers(), so this page never reads a file itself.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
-from PySide6.QtCore import QMargins, QPointF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtCore import QMargins, QPointF, QSize, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -26,6 +28,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -45,6 +48,38 @@ RED = QColor("#dd3b28")
 GRID = QColor("#e2e8ef")
 
 MARKER_COLOURS = {"NFL": BLUE, "GFAP": AMBER, "Abeta40": GREEN}
+
+# the hand-drawn face from assets/, used as the button icon
+SEND_ICON = Path(__file__).resolve().parent / "assets" / "image.png"
+
+# The app-wide QPushButton rule in theme.py is built for the dark sidebar
+# (#9aa6b6 text on transparent) - unreadable on this white card, so this
+# button styles itself explicitly.
+SEND_BUTTON_QSS = """
+QPushButton {
+    background: #ffffff;
+    color: #1b4d9e;
+    border: 1px solid #c8d3e0;
+    border-radius: 5px;
+    padding: 5px 10px 5px 6px;
+    font-size: 12px;
+}
+QPushButton:hover { background: #eaf3fd; border-color: #2f6fdb; }
+QPushButton:pressed { background: #d6e9fb; }
+QPushButton:disabled { color: #93a0b1; border-color: #e2e8ef; background: #f4f7fa; }
+"""
+
+
+def load_send_icon(path: Path = SEND_ICON) -> QIcon:
+    """The hand-drawn face, or an empty icon if the asset is missing.
+
+    An empty QIcon leaves the button's text intact, so a teammate whose
+    checkout lacks assets/ still gets a working, readable button.
+    """
+    pixmap = QPixmap(str(path))
+    if pixmap.isNull():
+        return QIcon()
+    return QIcon(pixmap)
 
 
 def initials(name: str) -> str:
@@ -111,11 +146,33 @@ class ProfilePage(QWidget):
 
         card_row.addStretch(1)
 
+        # top-right, where the send button belongs
+        right_side = QVBoxLayout()
+        right_side.setSpacing(6)
+
+        self.send_button = QPushButton("Send to Cimon")
+        self.send_button.setCursor(Qt.PointingHandCursor)
+        self.send_button.setStyleSheet(SEND_BUTTON_QSS)
+        self.send_button.setIcon(load_send_icon())
+        self.send_button.setIconSize(QSize(22, 22))
+        self.send_button.setToolTip("Dead button - prints this astronaut's data.")
+        self.send_button.setEnabled(False)
+        self.send_button.clicked.connect(self.print_data)
+        right_side.addWidget(self.send_button, 0, Qt.AlignRight)
+
         self.counters = QLabel("")
         self.counters.setObjectName("Hint")
         self.counters.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        card_row.addWidget(self.counters)
+        right_side.addWidget(self.counters)
+        right_side.addStretch(1)
+
+        card_row.addLayout(right_side)
         root.addWidget(card)
+
+        self.send_note = QLabel("")
+        self.send_note.setObjectName("Hint")
+        self.send_note.setWordWrap(True)
+        root.addWidget(self.send_note)
 
         # ---------------- two columns ---------------------------------------
         columns = QGridLayout()
@@ -199,6 +256,8 @@ class ProfilePage(QWidget):
             self._empty(self.accuracy_view, "accuracy % per session")
             self._empty(self.rt_view, "median reaction time per session")
             self._empty(self.marker_view, "NFL and GFAP per flight day")
+            self.send_button.setEnabled(False)
+            self.send_button.setToolTip("Select a crew member first")
             return
 
         self.avatar.setText(initials(member.name))
@@ -208,6 +267,13 @@ class ProfilePage(QWidget):
         records = self._store.for_astronaut(member.name) if self._store else []
         summary = biomarkers.summary(member.name, self._grouped)
         stats = self._store.stats(member.name) if self._store else {}
+
+        self.send_button.setEnabled(True)
+        self.send_button.setToolTip(
+            f"Dead button - prints {member.name}'s profile data "
+            f"({len(records)} game sessions, {summary['samples']} marker samples) "
+            f"to the console."
+        )
 
         self.record_note.setText(
             f"dataset name: {summary['dataset_name']}" if summary["found"]
@@ -300,6 +366,73 @@ class ProfilePage(QWidget):
             [("NFL", markers["NFL"]["series"], BLUE),
              ("GFAP", markers["GFAP"]["series"], AMBER)],
         )
+
+    # ------------------------------------------------------------- dead button
+    def build_payload(self) -> dict:
+        """Everything this tab knows about the selected astronaut."""
+        member = self._member
+        if member is None:
+            return {}
+
+        records = self._store.for_astronaut(member.name) if self._store else []
+        summary = biomarkers.summary(member.name, self._grouped)
+        stats = self._store.stats(member.name) if self._store else {}
+
+        markers = {}
+        for label, values in summary["markers"].items():
+            markers[label] = {
+                key: value for key, value in values.items() if key != "series"
+            }
+            markers[label]["series"] = [
+                [int(day), float(value)] for day, value in values["series"]
+            ]
+
+        return {
+            "destination": "Cimon",
+            "transport": "console only - nothing is transmitted",
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "astronaut": {
+                "name": member.name,
+                "station": member.craft,
+                "dataset_name": summary["dataset_name"],
+                "biomarkers_found": summary["found"],
+            },
+            "neuro_games": {
+                "sessions": stats.get("sessions", 0),
+                "best_accuracy": stats.get("best_accuracy"),
+                "latest_accuracy": stats.get("latest_accuracy"),
+                "mean_rt_ms": stats.get("mean_rt"),
+                "latest_throughput_per_min": stats.get("latest_throughput"),
+                "last_played": stats.get("last_played"),
+                "history": records,
+            },
+            "biomarkers": {
+                "samples": summary["samples"],
+                "clinical_status": summary.get("status"),
+                "anomaly": summary.get("anomaly"),
+                "first_flagged_day": summary.get("flagged_day"),
+                "markers": markers,
+            },
+        }
+
+    def print_data(self) -> str:
+        """The dead button: builds the payload and prints it. No network."""
+        payload = self.build_payload()
+        if not payload:
+            self.send_note.setText("nothing to print - select a crew member first")
+            return ""
+
+        text = json.dumps(payload, indent=2)
+        print(f"\n===== NeuroSpartan >> Cimon  (printed only, not sent) =====\n{text}")
+
+        games = payload["neuro_games"]["sessions"]
+        samples = payload["biomarkers"]["samples"]
+        name = payload["astronaut"]["name"]
+        self.send_note.setText(
+            f"printed {name}: {games} game sessions, {samples} marker samples "
+            f"- nothing was sent over the network, check the console."
+        )
+        return text
 
     # --------------------------------------------------------------- charts
     def _view(self, title: str) -> QChartView:
