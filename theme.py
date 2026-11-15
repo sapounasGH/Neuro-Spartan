@@ -48,6 +48,12 @@ QTabBar#Tabs::tab:selected { background: #ffffff; color: #2f6fdb; font-weight: 6
 
 QLabel#PageTitle { color: #151a21; font-size: 20px; font-weight: 600; }
 QLabel#PageName { color: #2f6fdb; font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+
+/* live ISS position, top right. Colours are explicit on purpose: any label
+   that inherits the platform palette goes white-on-white on a dark-mode
+   desktop, since this app paints its own light backgrounds. */
+QLabel#ISSTitle { color: #5c6b7f; font-size: 10px; font-weight: 600; letter-spacing: 2px; }
+QLabel#ISSValue { color: #151a21; font-family: Consolas, monospace; font-size: 13px; }
 QComboBox {
     color: #e6e6e6;
     background-color: #2b2b2b;

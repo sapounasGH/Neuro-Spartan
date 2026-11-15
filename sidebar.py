@@ -143,10 +143,6 @@ class CrewSidebar(QFrame):
             item.setToolTip(f"{member.name}\naboard {member.craft}")
             self.crew_list.addItem(item)
 
-        crafts = " · ".join(crew.crafts())
-        self.status.setText(f"{len(crew.members)} loaded from Open-Notify\n{crafts}")
-        self.status.setProperty("state", "")
-
         index = 0
         if previous:
             for position, member in enumerate(members):

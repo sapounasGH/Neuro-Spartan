@@ -276,7 +276,7 @@ class ProfilePage(QWidget):
         )
 
         self.record_note.setText(
-            f"dataset name: {summary['dataset_name']}" if summary["found"]
+            f"Astronaut: {summary['dataset_name']}" if summary["found"]
             else "no biomarker records for this crew member"
         )
         self.counters.setText(
@@ -429,8 +429,7 @@ class ProfilePage(QWidget):
         samples = payload["biomarkers"]["samples"]
         name = payload["astronaut"]["name"]
         self.send_note.setText(
-            f"printed {name}: {games} game sessions, {samples} marker samples "
-            f"- nothing was sent over the network, check the console."
+            f"Sent {name}: {games} game sessions, {samples} marker samples "
         )
         return text
 

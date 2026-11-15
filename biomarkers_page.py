@@ -75,9 +75,7 @@ class BiomarkersPage(QWidget):
         root.addWidget(heading)
 
         blurb = QLabel(
-            "Blood-brain-barrier markers measured twice a day. The trend that "
-            "matters is the normalised slope: how fast a marker rises relative to "
-            "that astronaut's own baseline spread."
+            "Blood-brain-barrier markers measured twice a day."
         )
         blurb.setObjectName("Hint")
         blurb.setWordWrap(True)
@@ -122,10 +120,6 @@ class BiomarkersPage(QWidget):
 
         root.addLayout(grid, 1)
 
-        self.source = QLabel("")
-        self.source.setObjectName("Hint")
-        root.addWidget(self.source)
-
         # data arrives from MainWindow via set_biomarkers(); this page reads no
         # files itself, so it starts in an explicitly empty state.
         self._show_selected()
@@ -138,11 +132,6 @@ class BiomarkersPage(QWidget):
         self._load_error = error
 
         records = sum(len(v) for v in self._grouped.values())
-        self.source.setText(
-            f"data file: {biomarkers.DATA_FILE.name}  -  {records} records, "
-            f"{len(self._grouped)} astronauts in it  -  "
-            f"names taken from Open-Notify, not hardcoded"
-        )
         self._show_selected()
 
     # ------------------------------------------------------------ live crew

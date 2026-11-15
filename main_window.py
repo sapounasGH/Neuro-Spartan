@@ -30,11 +30,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("NeuroSpartan")
         self.resize(1280, 800)
         self.setMinimumSize(960, 600)
-        header = QHBoxLayout()
-        header.addWidget(title)
-        header.addStretch(1)
-        self.iss = ISSWidget()
-        content_layout.addLayout(header)
+
         central = QWidget()
         layout = QHBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -53,7 +49,17 @@ class MainWindow(QMainWindow):
 
         title = QLabel("NEUROSPARTAN")
         title.setObjectName("Title")
-        content_layout.addWidget(title)
+
+        # top row: brand on the left, live ISS position on the right.
+        # Built here because it needs both `title` and `content_layout` to
+        # already exist - assembling it above them raised UnboundLocalError.
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        header.addWidget(title)
+        header.addStretch(1)
+        self.iss = ISSWidget()
+        header.addWidget(self.iss)
+        content_layout.addLayout(header)
 
         self.selected = QLabel("No astronaut selected yet.")
         self.selected.setObjectName("Selected")

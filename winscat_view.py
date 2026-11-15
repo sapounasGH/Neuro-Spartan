@@ -59,7 +59,7 @@ PHASE_HINT = {
     Phase.DELAY: "keep it in mind - the choices are coming",
     Phase.TEST: "click the matching grid (right-click also means the right one)",
     Phase.FEEDBACK: " ",
-    Phase.DONE: "data received",
+    Phase.DONE: "",
 }
 
 
