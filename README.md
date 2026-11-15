@@ -1,6 +1,6 @@
 # NeuroSpartan 🛡️🧠🪐
 
-## About the project
+## About the project 
 This is a project made for the Nasa Space Apps Hackathon 
 
 ## Title
