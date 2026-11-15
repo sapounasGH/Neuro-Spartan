@@ -149,7 +149,7 @@ class ProfilePage(QWidget):
         right_side = QVBoxLayout()
         right_side.setSpacing(6)
 
-        self.send_button = QPushButton("Send to Cimon")
+        self.send_button = QPushButton("Send to CIMON")
         self.send_button.setCursor(Qt.PointingHandCursor)
         self.send_button.setStyleSheet(SEND_BUTTON_QSS)
         self.send_button.setIcon(load_send_icon())
